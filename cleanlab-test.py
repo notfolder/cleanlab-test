@@ -16,12 +16,12 @@ def main(**kwargs):
     torch.manual_seed(seed)
 
     class MLP(nn.Module):
-        def __init__(self):
+        def __init__(self, dim):
             super().__init__()
             self.classifier = nn.Sequential(
                 # 第1引数：input
                 # 第2引数：output
-                nn.Linear(28 * 28, 400),
+                nn.Linear(dim, 400),
                 # メモリを節約出来る
                 nn.ReLU(inplace=True),
                 nn.Linear(400, 200),
@@ -63,8 +63,11 @@ def main(**kwargs):
     #  def __getitem__(self, i): return self.array[i]
 
     class MLPModel(BaseEstimator): # Inherits sklearn base classifier
-        def __init__(self, device, batch_size, epoch, **kwargs):
-            self._mlp = MLP()
+        def __init__(self, dataset_shape, device, batch_size, epoch, **kwargs):
+            dim = dataset_shape[0]
+            for x in dataset_shape[1:]:
+                dim *= x
+            self._mlp = MLP(dim)
             self.device = device
             self.batch_size = batch_size
             self.epoch = epoch
@@ -101,19 +104,48 @@ def main(**kwargs):
 
     from torchvision import datasets
 
-    trainset = datasets.MNIST('../data',
-                    train=True,
-                    download=True)
-    testset = datasets.MNIST('../data',
-                    train=False,
-                    download=True)
+    if dataset == 'MNIST':
+        trainset = datasets.MNIST('../data',
+                        train=True,
+                        download=True)
+        testset = datasets.MNIST('../data',
+                        train=False,
+                        download=True)
+
+        train_dataset_length = trainset.data.shape[0]
+        train_dataset_shape = trainset.data.shape[1:]
+        test_dataset_length = testset.data.shape[0]
+        test_dataset_shape = testset.data.shape[1:]
+
+        train_dataset_array = ((trainset.data.numpy().reshape(train_dataset_length, -1))/255.0).astype(np.float32)
+        train_class_array = trainset.targets.numpy()
+        test_dataset_array = ((testset.data.numpy().reshape(test_dataset_length, -1))/255.0).astype(np.float32)
+        test_class_array = testset.targets.numpy()
+
+    elif dataset == 'CIFAR10':
+        trainset = datasets.CIFAR10('../data',
+                        train=True,
+                        download=True)
+        testset = datasets.CIFAR10('../data',
+                        train=False,
+                        download=True)
+
+        train_dataset_length = trainset.data.shape[0]
+        train_dataset_shape = trainset.data.shape[1:]
+        test_dataset_length = testset.data.shape[0]
+        test_dataset_shape = testset.data.shape[1:]
+
+        train_dataset_array = ((trainset.data.reshape(train_dataset_length, -1))/255.0).astype(np.float32)
+        train_class_array = trainset.targets
+        test_dataset_array = ((testset.data.reshape(test_dataset_length, -1))/255.0).astype(np.float32)
+        test_class_array = testset.targets
+
+    else:
+        raise NotImplemented('unknown dataset name: ' + dataset)
 
     from sklearn.metrics import classification_report
 
     # Wrap around any classifier. Yup, you can use sklearn/pyTorch/Tensorflow/FastText/etc.
-    train_dataset_array = ((trainset.data.numpy().reshape(60000, 28*28))/255.0).astype(np.float32)
-    train_class_array = trainset.targets.numpy()
-    test_dataset_array = ((testset.data.numpy().reshape(10000, 28*28))/255.0).astype(np.float32)
 
     from cleanlab.noise_generation import generate_noisy_labels
 
@@ -160,16 +192,16 @@ def main(**kwargs):
     err = np.invert(train_targets==train_class_array)
 
     # 単純なMLPモデルでconfident learningを行う
-    model = MLPModel(**kwargs)
+    model = MLPModel(dataset_shape=train_dataset_shape, **kwargs)
 
     model.fit(train_dataset_array, train_class_array)
     predicted_test_labels = model.predict(test_dataset_array)
 
     print("==== Noisy Labelでの通常の学習による推定 ====")
     y_pred = torch.argmax(predicted_test_labels, dim=1)
-    print(classification_report(testset.targets, y_pred))
+    print(classification_report(test_class_array, y_pred))
 
-    model = MLPModel(**kwargs)
+    model = MLPModel(dataset_shape=train_dataset_shape, **kwargs)
 
     from cleanlab.latent_estimation import estimate_py_noise_matrices_and_cv_pred_proba
     lnl = LearningWithNoisyLabels(clf=model, seed=seed, cv_n_folds=cv_n_folds)
@@ -177,10 +209,10 @@ def main(**kwargs):
     # Estimate the predictions you would have gotten by training with *no* label errors.
     predicted_test_labels = lnl.predict(test_dataset_array)
 
-    print("==== Noisy LabelのConsistent Learningによる学習結果の評価 ====")
+    print("==== Noisy LabelのConfident Learningによる学習結果の評価 ====")
     y_pred = torch.argmax(predicted_test_labels, dim=1)
-    print(confusion_matrix(testset.targets, y_pred))
-    print(classification_report(testset.targets, y_pred))
+    print(confusion_matrix(test_class_array, y_pred))
+    print(classification_report(test_class_array, y_pred))
 
     est_py, est_nm, est_inv, confident_joint, psx = estimate_py_noise_matrices_and_cv_pred_proba(
         X = train_dataset_array, s=train_class_array, clf=model, seed=seed, cv_n_folds=cv_n_folds
@@ -189,15 +221,15 @@ def main(**kwargs):
     #y_pred = torch.argmax(psx, dim=1)
     y_pred = np.argmax(psx, axis=1)
 
-    print("==== Consistent Learningによるエラーマトリックス推定時に得られた結果の評価 ====")
-    print(confusion_matrix(trainset.targets, y_pred))
-    print(classification_report(trainset.targets, y_pred))
+    print("==== Confident Learningによるエラーマトリックス推定時に得られた結果の評価 ====")
+    print(confusion_matrix(train_targets, y_pred))
+    print(classification_report(train_targets, y_pred))
 
     print(confident_joint)
     np.set_printoptions(suppress=True, precision=2)
     print(est_nm)
 
-    print("==== Consistent Learningによるエラーインデックスの評価 ====")
+    print("==== Confident Learningによるエラーインデックスの評価 ====")
     from cleanlab.pruning import get_noise_indices
     est_err = get_noise_indices(s=train_class_array, psx=psx, inverse_noise_matrix=est_inv, confident_joint=confident_joint)
     print(est_err)
@@ -209,7 +241,7 @@ def main(**kwargs):
     with open(output, 'w') as f:
         writer = csv.writer(f)
         writer.writerow(['true_label', 'noise_label', 'estimated_error', 'true_error'])
-        out = list(zip(*[trainset.targets.tolist(), train_class_array, est_err, err]))
+        out = list(zip(*[train_targets, train_class_array, est_err, err]))
         writer.writerows(out)
 
 if __name__ == "__main__":
@@ -217,6 +249,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='cleanlab-test program.')
     parser.add_argument('--seed', type=int, nargs=1,
                         help='random seed.', default=0)
+    parser.add_argument('--dataset', type=str, nargs=1,
+                        help='dataset.[MNIST or CIFAR10]', default='MNIST')
     parser.add_argument('--noise_prob', type=float, nargs=1,
                         help='noise probability.', default=0.1)
     parser.add_argument('--output', type=str, nargs=1,

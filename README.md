@@ -19,6 +19,7 @@ cleanlab-test program.
 optional arguments:
   -h, --help            show this help message and exit
   --seed SEED           random seed.
+  --dataset DATASET     dataset.[MNIST or CIFAR10]
   --noise_prob NOISE_PROB
                         noise probability.
   --output OUTPUT       output csv filename.
@@ -100,7 +101,7 @@ weighted avg       0.80      0.80      0.80     60000
    macro avg       0.96      0.96      0.96     10000
 weighted avg       0.96      0.96      0.96     10000
 
-==== Noisy LabelのConsistent Learningによる学習結果の評価 ====
+==== Noisy LabelのConfident Learningによる学習結果の評価 ====
 [[ 972    0    4    0    0    0    0    0    3    1]
  [   0 1122    4    0    1    2    2    1    3    0]
  [   7    1  990   11    1    1    2    7   12    0]
@@ -128,7 +129,7 @@ weighted avg       0.96      0.96      0.96     10000
    macro avg       0.97      0.97      0.97     10000
 weighted avg       0.97      0.97      0.97     10000
 
-==== Consistent Learningによるエラーマトリックス推定時に得られた結果の評価 ====
+==== Confident Learningによるエラーマトリックス推定時に得られた結果の評価 ====
 [[5833    1    9    3    1   12   37    2   18    7]
  [   2 6643   13    7    9   23    1   29   14    1]
  [  19   10 5653   91    9  122   10   21   17    6]
@@ -176,7 +177,7 @@ weighted avg       0.96      0.96      0.96     60000
  [0.   0.11 0.   0.   0.   0.   0.   0.79 0.   0.1 ]
  [0.11 0.   0.   0.   0.   0.   0.1  0.   0.7  0.  ]
  [0.   0.   0.   0.   0.11 0.   0.   0.11 0.   0.79]]
-==== Consistent Learningによるエラーインデックスの評価 ====
+==== Confident Learningによるエラーインデックスの評価 ====
 [False False False ... False False False]
               precision    recall  f1-score   support
 
