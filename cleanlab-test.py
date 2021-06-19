@@ -356,7 +356,7 @@ def main(**kwargs):
     if model_kind == 'MLP':
         model = MLPModel(dataset_shape=train_dataset_shape, **kwargs)
     elif model_kind == 'ResNet18':
-        model = ResNetModel(dataset_shape=train_dataset_shape, **kwargs)
+        model = ResNetModel(dataset_shape=train_dataset_shape, channels=channels, **kwargs)
 
     from cleanlab.latent_estimation import estimate_py_noise_matrices_and_cv_pred_proba
     lnl = LearningWithNoisyLabels(clf=model, seed=seed, cv_n_folds=cv_n_folds)
@@ -407,9 +407,9 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, nargs=1,
                         help='random seed.', default=0)
     parser.add_argument('--dataset', type=str, nargs=1,
-                        help='dataset.[MNIST or CIFAR10]', default='MNIST')
+                        help='dataset.[MNIST or CIFAR10]', default='CIFAR10')
     parser.add_argument('--model_kind', type=str, nargs=1,
-                        help='dataset.[MLP or ResNet18]', default='MLP')
+                        help='dataset.[MLP or ResNet18]', default='ResNet18')
     parser.add_argument('--noise_prob', type=float, nargs=1,
                         help='noise probability.', default=0.1)
     parser.add_argument('--output', type=str, nargs=1,
@@ -424,7 +424,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, nargs=1,
                         help='batch size.', default=512)
     parser.add_argument('--epoch', type=int, nargs=10,
-                        help='epoch.', default=1)
+                        help='epoch.', default=100)
 
     args = parser.parse_args()
     main(**vars(args))
