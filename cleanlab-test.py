@@ -345,9 +345,7 @@ def main(**kwargs):
         model = ResNetModel(dataset_shape=train_dataset_shape, channels=channels, **kwargs)
 
     model.fit(train_dataset_array, train_class_array)
-    torch.cuda.empty_cache()
     predicted_test_labels = model.predict(test_dataset_array)
-    torch.cuda.empty_cache()
 
     print("==== Noisy Labelでの通常の学習による推定 ====")
     y_pred = torch.argmax(predicted_test_labels, dim=1)
@@ -361,10 +359,8 @@ def main(**kwargs):
     from cleanlab.latent_estimation import estimate_py_noise_matrices_and_cv_pred_proba
     lnl = LearningWithNoisyLabels(clf=model, seed=seed, cv_n_folds=cv_n_folds)
     lnl.fit(X=train_dataset_array, s=train_class_array)
-    torch.cuda.empty_cache()
     # Estimate the predictions you would have gotten by training with *no* label errors.
     predicted_test_labels = lnl.predict(test_dataset_array)
-    torch.cuda.empty_cache()
 
     print("==== Noisy LabelのConfident Learningによる学習結果の評価 ====")
     y_pred = torch.argmax(predicted_test_labels, dim=1)
