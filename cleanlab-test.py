@@ -66,11 +66,11 @@ class Bottleneck(nn.Module):
 		return out
 
 class ResNet(nn.Module):
-	def __init__(self, block, num_blocks, num_classes=10):
+	def __init__(self, block, num_blocks, channels, num_classes=10):
 		super(ResNet, self).__init__()
 		self.in_planes = 64
 
-		self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+		self.conv1 = nn.Conv2d(channels, 64, kernel_size=3, stride=1, padding=1, bias=False)
 		self.bn1 = nn.BatchNorm2d(64)
 		self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
 		self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
@@ -98,8 +98,8 @@ class ResNet(nn.Module):
 		return out
 
 
-def ResNet18():
-	return ResNet(BasicBlock, [2,2,2,2])
+def ResNet18(channels):
+	return ResNet(BasicBlock, [2,2,2,2], channels)
 
 def main(**kwargs):
     for key, value in kwargs.items():
@@ -169,11 +169,9 @@ def main(**kwargs):
 
         def fit(self, X, y, sample_weight=None):
             self._mlp.to(self.device)
-#            data = [(X[i,:],y[i]) for i in range(len(X))]
-            #data = np.dstack((X,y))
-            #data = np.fromiter(zip(X,y), np.float32)
+            X = torch.tensor(X.reshape(self.dataset_shape))
+            y = torch.tensor(y)
             dataset = torch.utils.data.TensorDataset(X, y)
-
             loader = DataLoader(dataset, batch_size=self.batch_size)
 
             # 7. 損失関数を定義
@@ -200,9 +198,9 @@ def main(**kwargs):
             raise NotImplementedError()
 
     class ResNetModel(BaseEstimator): # Inherits sklearn base classifier
-        def __init__(self, dataset_shape, device, batch_size, epoch, **kwargs):
+        def __init__(self, dataset_shape, device, batch_size, epoch, channels, **kwargs):
             shape = (-1,) + dataset_shape
-            self._net = ResNet18()
+            self._net = ResNet18(channels)
             self.device = device
             self.batch_size = batch_size
             self.epoch = epoch
@@ -210,14 +208,9 @@ def main(**kwargs):
 
         def fit(self, X, y, sample_weight=None):
             self._net.to(self.device)
-#            data = [(X[i,:],y[i]) for i in range(len(X))]
-            #data = np.dstack((X,y))
-            #data = np.fromiter(zip(X,y), np.float32)
-#            loader = DataLoader(data, batch_size=self.batch_size)
             X = torch.tensor(X.reshape(self.dataset_shape))
             y = torch.tensor(y)
             dataset = torch.utils.data.TensorDataset(X, y)
-
             loader = DataLoader(dataset, batch_size=self.batch_size)
 
             # 7. 損失関数を定義
@@ -269,21 +262,11 @@ def main(**kwargs):
     if dataset == 'MNIST':
         trainset = datasets.MNIST('../data',
                         train=True,
-                        download=True)
+                        download=True, transform=torchvision.transforms.ToTensor())
         testset = datasets.MNIST('../data',
                         train=False,
-                        download=True)
-
-        train_dataset_length = trainset.data.shape[0]
-        train_dataset_shape = trainset.data.shape[1:]
-        test_dataset_length = testset.data.shape[0]
-        test_dataset_shape = testset.data.shape[1:]
-
-        train_dataset_array = ((trainset.data.numpy().reshape(train_dataset_length, -1))/255.0).astype(np.float32)
-        train_class_array = trainset.targets.numpy()
-        test_dataset_array = ((testset.data.numpy().reshape(test_dataset_length, -1))/255.0).astype(np.float32)
-        test_class_array = testset.targets.numpy()
-
+                        download=True, transform=torchvision.transforms.ToTensor())
+        channels = 1
     elif dataset == 'CIFAR10':
         trainset = datasets.CIFAR10('../data',
                         train=True,
@@ -291,23 +274,21 @@ def main(**kwargs):
         testset = datasets.CIFAR10('../data',
                         train=False,
                         download=True, transform=torchvision.transforms.ToTensor())
-
-        train_dataset_length = trainset.data.shape[0]
-        #train_dataset_shape = trainset.data[0].shape
-        test_dataset_length = testset.data.shape[0]
-        #test_dataset_shape = testset.data[0].shape
-
-        train_dataset_array = next(iter(DataLoader(trainset, batch_size=len(trainset))))[0].numpy()
-        train_dataset_shape = train_dataset_array[0].shape
-        train_dataset_array = train_dataset_array.reshape((train_dataset_length, -1))
-        train_class_array = trainset.targets
-        test_dataset_array = next(iter(DataLoader(testset, batch_size=len(testset))))[0].numpy()
-        test_dataset_shape = test_dataset_array[0].shape
-        test_dataset_array = test_dataset_array.reshape((test_dataset_length, -1))
-        test_class_array = testset.targets
-
+        channels = 3
     else:
         raise NotImplemented('unknown dataset name: ' + dataset)
+
+    train_dataset_length = trainset.data.shape[0]
+    test_dataset_length = testset.data.shape[0]
+
+    train_dataset_array = next(iter(DataLoader(trainset, batch_size=len(trainset))))[0].numpy()
+    train_dataset_shape = train_dataset_array[0].shape
+    train_dataset_array = train_dataset_array.reshape((train_dataset_length, -1))
+    train_class_array = np.asarray(trainset.targets)
+    test_dataset_array = next(iter(DataLoader(testset, batch_size=len(testset))))[0].numpy()
+    test_dataset_shape = test_dataset_array[0].shape
+    test_dataset_array = test_dataset_array.reshape((test_dataset_length, -1))
+    test_class_array = np.asarray(testset.targets)
 
     from sklearn.metrics import classification_report
 
@@ -361,7 +342,7 @@ def main(**kwargs):
     if model_kind == 'MLP':
         model = MLPModel(dataset_shape=train_dataset_shape, **kwargs)
     elif model_kind == 'ResNet18':
-        model = ResNetModel(dataset_shape=train_dataset_shape, **kwargs)
+        model = ResNetModel(dataset_shape=train_dataset_shape, channels=channels, **kwargs)
 
     model.fit(train_dataset_array, train_class_array)
     torch.cuda.empty_cache()
@@ -426,9 +407,9 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, nargs=1,
                         help='random seed.', default=0)
     parser.add_argument('--dataset', type=str, nargs=1,
-                        help='dataset.[MNIST or CIFAR10]', default='CIFAR10')
+                        help='dataset.[MNIST or CIFAR10]', default='MNIST')
     parser.add_argument('--model_kind', type=str, nargs=1,
-                        help='dataset.[MLP or ResNet18]', default='ResNet18')
+                        help='dataset.[MLP or ResNet18]', default='MLP')
     parser.add_argument('--noise_prob', type=float, nargs=1,
                         help='noise probability.', default=0.1)
     parser.add_argument('--output', type=str, nargs=1,
@@ -442,8 +423,8 @@ if __name__ == "__main__":
 
     parser.add_argument('--batch_size', type=int, nargs=1,
                         help='batch size.', default=512)
-    parser.add_argument('--epoch', type=int, nargs=1,
-                        help='epoch.', default=10)
+    parser.add_argument('--epoch', type=int, nargs=10,
+                        help='epoch.', default=1)
 
     args = parser.parse_args()
     main(**vars(args))
