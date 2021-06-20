@@ -200,7 +200,8 @@ def main(**kwargs):
     class ResNetModel(BaseEstimator): # Inherits sklearn base classifier
         def __init__(self, dataset_shape, device, batch_size, epoch, channels, **kwargs):
             shape = (-1,) + dataset_shape
-            self._net = ResNet18(channels)
+#            self._net = ResNet18(channels)
+            self._net = torchvision.models.resnet18()
             self.device = device
             self.batch_size = batch_size
             self.epoch = epoch
@@ -255,7 +256,6 @@ def main(**kwargs):
 
         def score(self, X, y, sample_weight=None):
             raise NotImplementedError()
-
 
     from torchvision import datasets
 
